@@ -1,0 +1,82 @@
+<p id="notice"><%= notice %></p>
+
+<% unless @current_customer_id.nil? %>
+<h1>From <%= Customer.current.subdomain %> you can go to:</h1>
+<% end %>
+
+<table>
+  <thead>
+    <tr>
+      <th>Subdomain</th>
+      <th colspan="<%= @current_customer_id.nil? ? 3 : 2 %>"></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% @customers.each do |customer| %>
+      <tr>
+        <td><%= customer.subdomain %></td>
+        <td><% if @current_customer_id == customer.id %>
+              &lt;&lt; CURRENT &gt;&gt;
+            <% elsif @linked_customer_ids.include?(customer.id) %>
+              <%= link_to 'Switch', "http://#{customer.subdomain}.lvh.me:3000" %>
+              <% ulp = UserLink.find_by(link_user_id: current_user.id, link_customer_id: @current_customer_id, customer_id: customer.id)
+              binding.pry if ulp.nil? %>
+              <%= link_to 'Unlink', user_link_path(ulp.id), method: :delete %>
+            <% elsif !@current_customer_id.nil? %>
+              <%= link_to 'Link', user_links_path(customer_id: customer.id), method: :post %>
+            <% else %>
+              <%= link_to 'Navigate', "http://#{customer.subdomain}.lvh.me:3000" %>
+            <% end %>
+        </td>
+        <% if @current_customer_id.nil? %>
+        <td><%= link_to 'Edit', edit_customer_path(customer) %></td>
+        <td><%= link_to 'Destroy', customer, method: :delete, data: { confirm: 'Are you sure?' } %></td>
+        <% else %>
+          <td><%= link_to "", "http://#{customer.subdomain}.lvh.me:3000/widgets", {id: "cust_#{customer.id}_widget_count"} %></td>
+        <% end %>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<br>
+
+<% if @current_customer_id.nil? %>
+  <%= link_to 'New Customer', new_customer_path %>
+<% else %>
+  <label for="cbWidgetCounts"><input type="checkbox" id="cbWidgetCounts">Monitor widget counts</label>
+
+  <script>
+    var cbWidgetCounts = document.getElementById("cbWidgetCounts");
+    var widgetCountTimeout = null;
+    cbWidgetCounts.addEventListener("change", function () {
+      if (this.checked) {
+        doWidgetTimeout();
+      }
+      else {
+        clearTimeout(widgetCountTimeout);
+        widgetCountTimeout = null;
+      }
+    });
+
+    function doWidgetTimeout() {
+      Rails.ajax({type: "GET", url: "/customers/widget_counts", success: function (data) {
+          console.log(data);
+          for (var i = 0; i < data.counts.length; ++i) {
+            var entry = data.counts[i];
+            var td = document.getElementById("cust_" + entry.customer_id + "_widget_count");
+            td.innerHTML = entry.count;
+          }
+        }
+      });
+      widgetCountTimeout = setTimeout(doWidgetTimeout, 5000);
+    }
+
+    document.addEventListener('turbolinks:before-render', function(event) {
+      if (widgetCountTimeout) {
+        clearTimeout(widgetCountTimeout);
+      }
+    });
+  </script>
+<% end %>
